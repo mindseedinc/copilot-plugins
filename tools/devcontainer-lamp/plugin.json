@@ -1,0 +1,8 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "devcontainer-lamp",
+  "version": "0.1.0",
+  "description": "Scaffold a VS Code dev container into any project: Debian 13 with Apache, the latest PHP, Composer and Xdebug, plus a MySQL service.",
+  "license": "MIT",
+  "keywords": ["devcontainer", "debian", "php", "apache", "mysql", "lamp"]
+}

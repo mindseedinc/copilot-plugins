@@ -1,0 +1,15 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "social-crawl",
+  "version": "0.2.0",
+  "description": "Give agents live public data from the web, search engines, news, social media, commerce, reviews, apps, jobs, and finance through the SocialCrawl API.",
+  "homepage": "https://www.socialcrawl.dev/docs",
+  "license": "MIT",
+  "keywords": [
+    "socialcrawl",
+    "web-search",
+    "social-media",
+    "research",
+    "scraping"
+  ]
+}

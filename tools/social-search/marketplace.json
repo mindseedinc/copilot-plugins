@@ -1,0 +1,18 @@
+{
+  "name": "social-search",
+  "metadata": {
+    "description": "Local marketplace for the social-search plugin",
+    "version": "1.0.0"
+  },
+  "owner": {
+    "name": "workstage"
+  },
+  "plugins": [
+    {
+      "name": "social-search",
+      "description": "Search public social content through Social Searcher using a bundled browser-based skill.",
+      "version": "0.1.0",
+      "source": "."
+    }
+  ]
+}

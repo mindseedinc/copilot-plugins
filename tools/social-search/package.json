@@ -1,0 +1,17 @@
+{
+  "name": "copilot-social-search",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "search": "node skills/social-search/scripts/search.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "setup:browser": "playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.58.0"
+  }
+}

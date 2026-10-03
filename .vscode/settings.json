@@ -1,0 +1,7 @@
+{
+  "chat.plugins.enabled": true,
+  "chat.pluginLocations": {
+    "/Users/workstage/Projects/plugins/tools/social-search": true,
+    "/Users/workstage/Projects/plugins/tools/devcontainer-lamp": true
+  }
+}

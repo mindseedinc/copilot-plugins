@@ -1,0 +1,6 @@
+# MySQL client defaults for the dev container. The "db" service uses MySQL's
+# auto-generated self-signed certificate, so certificate verification is off.
+[client]
+host = db
+port = 3306
+skip-ssl-verify-server-cert

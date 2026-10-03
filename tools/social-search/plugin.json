@@ -1,0 +1,7 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "social-search",
+  "version": "0.1.0",
+  "description": "Search public social content through Social Searcher using a bundled browser-based skill.",
+  "keywords": ["social-search", "research", "social-media"]
+}

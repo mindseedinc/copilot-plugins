@@ -1,0 +1,44 @@
+name: __PROJECT_NAME__-devcontainer
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PHP_VERSION: "__PHP_VERSION__"
+    init: true
+    volumes:
+      - ..:/workspace:cached
+    environment:
+      APACHE_DOCUMENT_ROOT: "__DOCROOT__"
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_DATABASE: "__DB_NAME__"
+      DB_USERNAME: "__DB_USER__"
+      DB_PASSWORD: "__DB_PASSWORD__"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mysql:__MYSQL_VERSION__
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: "__DB_ROOT_PASSWORD__"
+      MYSQL_DATABASE: "__DB_NAME__"
+      MYSQL_USER: "__DB_USER__"
+      MYSQL_PASSWORD: "__DB_PASSWORD__"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+volumes:
+  mysql-data:
