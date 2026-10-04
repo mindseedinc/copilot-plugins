@@ -8,10 +8,17 @@ services:
       args:
         PHP_VERSION: "8.5"
     init: true
+    # Apache: no fixed host port; VS Code auto-forwards container port 80.
+
     volumes:
+      # Whole project (tools, .devcontainer, config) at /workspace.
       - ..:/workspace:cached
+      # Application files, served by Apache.
+      - ../httpdocs:/var/www/httpdocs:cached
+      # Apache error log on the host.
+      - ../logs/errors/apache:/var/log/apache2
     environment:
-      APACHE_DOCUMENT_ROOT: "/workspace"
+      APACHE_DOCUMENT_ROOT: "/var/www/httpdocs"
       DB_CONNECTION: mysql
       DB_HOST: db
       DB_PORT: "3306"
@@ -25,13 +32,19 @@ services:
   db:
     image: mysql:26.7
     restart: unless-stopped
+    # Error log to the host bind (logs/errors/mysql/error.log).
+    command: --log-error=/var/log/mysql/error.log
     environment:
       MYSQL_ROOT_PASSWORD: "root"
       MYSQL_DATABASE: "app"
       MYSQL_USER: "app"
       MYSQL_PASSWORD: "app"
     volumes:
+      # MySQL data lives in a named volume: it persists across rebuilds and
+      # `docker compose down`, and is faster than a host bind on macOS/Windows.
       - mysql-data:/var/lib/mysql
+      # MySQL error log on the host.
+      - ../logs/errors/mysql:/var/log/mysql
       - ./mysql/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]

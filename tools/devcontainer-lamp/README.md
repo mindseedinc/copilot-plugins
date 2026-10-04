@@ -37,6 +37,13 @@ The script writes these files to `<project>/.devcontainer/`:
 └── .gitattributes       # keeps scripts on LF line endings
 ```
 
+It also writes `<project>/.github/copilot-instructions.md` with a
+"Dev container" section for agents (services, docroot, port, DB connection,
+logs, volume). The section is wrapped in `<!-- devcontainer-lamp:begin/end -->`
+markers: rerunning the script updates only that section and leaves the rest
+of the file untouched. A file without markers gets the section appended; the
+script never overwrites unrelated content.
+
 Open the project in VS Code and choose **Reopen in Container**. VS Code
 suggests this when it finds `.devcontainer/devcontainer.json`. `--open` skips
 that prompt. Commit `.devcontainer/` so everyone on the project gets the same
@@ -54,7 +61,9 @@ ln -s /path/to/tools/devcontainer-lamp/create-devcontainer.sh ~/bin/create-lamp-
 |--------|---------|
 | `--php VERSION` | latest stable PHP from php.net (currently 8.5) |
 | `--mysql TAG` | newest numeric `mysql` tag on Docker Hub (currently 26.7) |
-| `--docroot PATH` | `public` if `public/index.php` exists, else the project root |
+| `--port PORT` | none — VS Code auto-forwards port 80 to a free local port (avoids conflicts between projects); pass e.g. `--port 8080` to pin |
+| `--app-dir NAME` | `httpdocs` — app folder bound to `/var/www/httpdocs` |
+| `--docroot PATH` | `public` if `public/index.php` exists, else the app folder |
 | `--name NAME` | project folder name (used for the Compose project name) |
 | `--db-name` / `--db-user` / `--db-password` | `app` / `app` / `app` |
 | `--db-root-password` | `root` |
@@ -65,6 +74,36 @@ ln -s /path/to/tools/devcontainer-lamp/create-devcontainer.sh ~/bin/create-lamp-
 The script looks up the latest versions once, when it runs, and writes them
 into the files. The environment stays the same until you regenerate it or
 edit `PHP_VERSION` / `image: mysql:…` in `compose.yaml`.
+
+## Ports, volumes and bind mounts
+
+By default Apache is **not** published on a fixed host port: VS Code auto-forwards
+container port 80 and picks a free local port, so multiple projects can run at
+the same time. The URL shows in VS Code's **Ports** panel. Pass `--port 8080`
+to pin it.
+
+State is split by what it needs:
+
+| Where | What | Why |
+|-------|------|-----|
+| named Docker volume `<project>-devcontainer_mysql-data` | MySQL database files | persists across rebuilds and `docker compose down`; survives container recreation; faster than a host bind on macOS/Windows |
+| `httpdocs/` (or `--app-dir`) → `/var/www/httpdocs` | application files | live with the code, editable on the host; Apache docroot and VS Code workspace folder |
+| `logs/errors/apache/` → `/var/log/apache2` | Apache `error.log` | easy to inspect on the host |
+| `logs/errors/mysql/` → `/var/log/mysql` | MySQL `error.log` | easy to inspect on the host |
+
+The volume name is deterministic (Compose project name + `_mysql-data`), so
+the same project always reuses its data. `logs/` gets a `.gitignore` (`*`) so
+logs are never committed. The whole project is also mounted at `/workspace`,
+so `.devcontainer` and tooling stay reachable.
+
+To reset the database: `docker volume rm <project>-devcontainer_mysql-data`
+(run `docker compose -p <project>-devcontainer down` first).
+
+Layouts where the docroot sits inside the project (Laravel, Symfony — detected
+via `public/index.php`, or forced with `--docroot`) keep serving from
+`/workspace/<docroot>` and keep the workspace folder at `/workspace`, because
+binding only `public/` would break `../vendor` includes. They still get the
+volume and the `logs/` binds.
 
 ## Inside the container
 
@@ -106,5 +145,10 @@ tests/smoke-test.sh --keep   # leave the container and project for inspection
 
 The smoke test generates a temporary project and starts it with the Dev
 Containers CLI. It checks Debian 13, the PHP version and extensions, Composer,
-Apache (and its user), the MySQL CLI and `mysqldump`, and an HTTP request that
-runs PHP and queries MySQL. It removes the containers and volume afterwards.
+Apache (and its user), the MySQL CLI and `mysqldump`, an HTTP request that
+runs PHP and queries MySQL, the default auto-forwarded port (no `ports:` in
+compose; run with `PINNED_PORT=1` to check the `--port` mode), the MySQL named
+volume, the host-side `logs/errors/*` binds, the framework
+(`public/index.php`) layout, and the generated
+`.github/copilot-instructions.md` (rendered values, idempotent rerun, user
+content preserved). It removes the containers and volume afterwards.

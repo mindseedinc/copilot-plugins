@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 $workspace = dirname(__DIR__, 2);
 ob_start();
-require $workspace . '/index.php';
+require $workspace . '/httpdocs/index.php';
 $rendered = ob_get_clean();
 if ($rendered === false) {
     throw new RuntimeException('The homepage render could not be captured.');

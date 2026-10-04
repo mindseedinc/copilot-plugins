@@ -65,6 +65,154 @@ The script finds the key automatically, in order: `$SOCIALCRAWL_API_KEY`, the pl
 | Products, prices, reviews, apps, places, jobs, finance | `endpoints --search "<reviews/product/app/jobs/quote>"` | usually 1 |
 | Multi-step jobs (brand monitoring, creator deep-dive) | `plan "<job>"` | free |
 
+## Search modes in depth
+
+Five fused search modes. `query` is always the first positional argument; every
+other parameter is a `key=value` pair. In the examples below,
+`S` is the script path, set once per shell:
+
+```sh
+S="<skill-directory>/scripts/socialcrawl.py"
+``` Costs: `everywhere` 20 flat, `forums` 10,
+`creators` 10 (+2 with `brief=`), `news` 2-14 metered, `multi` ~1 per platform
+that returns rows.
+
+### `search everywhere` — all sources at once
+
+One call fuses 14-17 sources (Reddit, X, YouTube, TikTok, Instagram, Hacker News,
+GitHub, Threads, Pinterest, Rumble, LinkedIn, hashtag lanes) with stance and
+relevance judgments included.
+
+```sh
+python3 "$S" search everywhere "github copilot" lookback_days=7
+```
+
+Key parameters: `lookback_days=<n>` or `from_date=YYYY-MM-DD`+`to_date=` (mutually
+exclusive), `sources=<csv>` / `exclude=<csv>` (valid names: reddit,
+twitter-ai-search, youtube, tiktok, instagram, hackernews, polymarket, github,
+threads, pinterest, perplexity, tavily, linkedin, rumble, tiktok-hashtag,
+instagram-hashtag, youtube-hashtag), `relevance=filter` (drops judged off-topic
+rows), `include_transcripts=true` (spoken-word transcripts for the top 3 videos).
+
+### `search forums` — discussions with comments
+
+Reddit, Hacker News, and Naver 지식iN/카페 fused, with top comments inline on hero
+threads by default.
+
+```sh
+python3 "$S" search forums "airpods pro 3 battery" timeframe=month
+```
+
+Key parameters: `sources=reddit,hackernews,naver_kin,naver_cafe`, `comments=off`
+(thread-only), `timeframe=all|day|week|month|year`, `lookback_days=<1-365>`,
+`relevance=score|filter`, `relevance_threshold=<0-1>`.
+
+### `search creators` — influencer discovery
+
+TikTok + Threads + Instagram by default; YouTube, X, and Facebook people are
+opt-in via `sources=`. Ranked by relevance, followers, or verification.
+
+```sh
+python3 "$S" search creators "skincare routine" min_followers=10000 verified_only=true sort=followers
+```
+
+Key parameters: `sources=tiktok,threads,instagram,youtube,twitter,facebook`,
+`min_followers=<n>`, `verified_only=true`, `sort=relevance|followers|verification`,
+`brief="<what you want in your own words, 3-300 chars>"` (judges each creator's
+fit; +2 credits), `relevance=score|filter` (only with `brief=`).
+
+### `search news` — multi-country news coverage
+
+One query fanned out across up to 12 of 50 country editions; Google index by
+default, optional Bing engine. Boolean AND/OR/NOT and quoted phrases supported;
+Google operators (site:, intitle:, before:) are rejected.
+
+```sh
+python3 "$S" search news "samsung galaxy launch" countries=us,gb,de time_range=week sort=date
+```
+
+Key parameters: `countries=<iso-codes csv>`, `engines=google,bing` (bing priced
+per article), `time_range=day|week|month|year`, `from`/`to` (YYYY-MM-DD or Unix
+seconds), `publisher=<domain>`, `sort=relevance|date`, `depth=<10-100 step 10>`,
+`max_legs=<1-12>`, `group=stories` (clusters same-event articles).
+
+### `search multi` — each platform's native search
+
+One query, per-platform results, per-platform filters. Platforms: tiktok,
+instagram, youtube, reddit, threads, twitter, facebook, linkedin. Default:
+tiktok,instagram,youtube,reddit,threads.
+
+```sh
+python3 "$S" search multi "wireless earbuds" platforms=reddit,youtube,tiktok
+```
+
+Key parameters: `platforms=<csv>`, `since=YYYY-MM-DD`, plus per-platform filters
+sent exactly as the platform's own endpoint takes them:
+`youtube.uploadDate=today|this_week|this_month|this_year`,
+`youtube.sortBy=relevance|popular`, `youtube.type=videos|shorts`,
+`youtube.duration=under_3_min|between_3_and_20_min|over_20_min`, `youtube.region=`,
+`reddit.sort=relevance|new|top|comment_count`, `reddit.timeframe=day|week|month|year|all`,
+`tiktok.sort_by=relevance|most-liked|date-posted`, `tiktok.date_posted=this-week|...`,
+`tiktok.region=`, `instagram.date_posted=last-week|last-month|last-year`,
+`threads.start_date=` / `threads.end_date=`, `twitter.sort=latest|top`,
+`facebook.recent_posts=true`, `facebook.start_date=` / `facebook.end_date=`,
+`linkedin.sort_by=date_posted|relevance`, `linkedin.date_posted=past_24h|past_week|past_month`,
+`linkedin.content_type=videos|photos|jobs|live_videos|documents|collaborative_articles`,
+`relevance=score|filter`, `relevant_to="<topic override>"`.
+
+## YouTube lookups
+
+Channel and content endpoints, all ~1 credit unless noted. Accept `handle=`
+(no @), `channelId=`, or `url=`.
+
+```sh
+python3 "$S" call youtube/channel handle=nasa          # subs, bio, public email
+python3 "$S" call youtube/channel/videos channel_id=UC...  # videos / shorts / lives
+python3 "$S" call youtube/channel/playlists channel_id=UC...
+python3 "$S" call youtube/channel/community-posts channel_id=UC...
+python3 "$S" call youtube/profile/full handle=nasa     # everything fused
+python3 "$S" call youtube/video url=https://youtube.com/watch?v=...
+python3 "$S" call youtube/video/comments "url=..." order=newest searchTerm="shipping"
+python3 "$S" call youtube/video/comment/replies "url=..." continuationToken=...
+python3 "$S" call youtube/video/transcript url=...     # timestamped segments
+python3 "$S" call youtube/search "query=review" uploadDate=this_week sortBy=popular
+python3 "$S" call youtube/search/advanced "query=..."  # duration, region filters
+python3 "$S" call youtube/search/hashtag tag=buildinpublic
+python3 "$S" call youtube/videos/trending              # and youtube/shorts/trending
+python3 "$S" call youtube/playlist playlistId=...      # and youtube/playlist/items
+python3 "$S" call youtube/channel/about handle=mkbhd   # 25 credits: email behind button
+```
+
+- `youtube/video/comments` supports `order=top|newest`, `searchTerm=`,
+  `max_results=1-100`, `label=` (sentiment/question/purchase_intent/complaint are
+  free; spam/toxic/low_quality add 1 per started 25 newly judged), and
+  `channel_id=` for channel-level community comments.
+- `youtube/channel/about` costs 25 credits; try `youtube/channel` first (it
+  already carries the email for some channels, free). Needs a 300s timeout.
+- Batch: `call youtube/videos --method POST --body @ids.json` (also
+  `youtube/channels`, `youtube/transcripts`).
+- Also available: `youtube/video/audio`, `youtube/video/subtitles`,
+  `youtube/video/thumbnails`, `youtube/video/sponsors`, `youtube/community-post`.
+
+## When asked how to use this skill
+
+If the user asks how to use this skill — for example "how do I use social-crawl?",
+"what commands does this skill have?", "show me the skill commands", or "what can
+this skill do?" — do not make any API calls. Reply with a summary of every command
+below, grouped as shown, with one runnable example per group:
+
+- **Free discovery**: `balance`, `endpoints --search "<topic>"`,
+  `endpoint <id>`, `plan "<job>"`.
+- **Fused search modes**: `search everywhere|forums|creators|news|multi` with
+  their key parameters and credit costs (see "Search modes in depth").
+- **Web**: `web-search "<query>" limit=10`, `scrape <url>`.
+- **Per-platform**: `endpoints --platform <platform>` then
+  `call <platform>/<resource> key=value ...` (YouTube examples above).
+- **Options**: `--output <file>`, `--pages N`, `--method POST --body @file.json`.
+
+Keep the reply compact: the command, what it does, its cost, and one example
+line each. Offer to run any of them.
+
 ## Cost guardrails
 
 - Most calls cost 1 credit; cache hits, failures, and empty results are free.

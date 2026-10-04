@@ -40,6 +40,9 @@ characters. Report its errors to the user instead of working around them.
   is why MySQL runs in its own container.
 - The app container gets `DB_HOST=db`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`,
   and `DB_PASSWORD`. Running `mysql` with no arguments connects to the database.
+- `.devcontainer/` files plus `.github/copilot-instructions.md` (a "Dev
+  container" section between `devcontainer-lamp:begin/end` markers, merged
+  idempotently — user content outside the markers is preserved).
 
 Afterwards, tell the user to open the folder in VS Code and choose
 **Reopen in Container**. The first build takes a few minutes.

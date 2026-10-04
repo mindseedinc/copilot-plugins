@@ -8,6 +8,7 @@ TEMPLATE_DIR="${SCRIPT_DIR}/../templates"
 
 DEFAULT_PHP_VERSION="8.5"
 DEFAULT_MYSQL_VERSION="26.7"
+DEFAULT_APP_DIR="httpdocs"
 
 usage() {
     cat <<'EOF'
@@ -20,8 +21,16 @@ Creates PROJECT_DIR/.devcontainer (default: current directory) with:
 Options:
   --php VERSION        PHP major.minor (default: latest stable from php.net)
   --mysql TAG          MySQL image tag (default: latest numeric tag on Docker Hub)
-  --docroot PATH       Web root relative to the project (default: "public" if
-                       public/index.php exists, otherwise the project root)
+  --port PORT          Pin Apache to a fixed host port (container port 80).
+                       Default: no fixed port; VS Code auto-forwards port 80
+                       and picks a free host port (avoids conflicts between
+                       multiple projects)
+  --app-dir NAME       Folder for application files, bound to
+                       /var/www/httpdocs (default: httpdocs)
+  --docroot PATH       Serve <project>/PATH instead (for layouts like Laravel,
+                       where the docroot sits inside the full project; e.g.
+                       public). Default: public if public/index.php exists,
+                       otherwise the app folder at /var/www/httpdocs
   --name NAME          Project name (default: project folder name)
   --db-name NAME       Database name (default: app)
   --db-user USER       Database user (default: app)
@@ -37,12 +46,16 @@ EOF
 
 die() { echo "error: $*" >&2; exit 1; }
 info() { echo "$*" >&2; }
+matches() { printf '%s' "$1" | grep -Eq "$2"; }
 
 PROJECT_DIR=""
 PHP_VERSION=""
 MYSQL_VERSION=""
 DOCROOT=""
 DOCROOT_SET=0
+APP_DIR=""
+PORT=""
+PORT_SET=0
 PROJECT_NAME=""
 DB_NAME="app"
 DB_USER="app"
@@ -59,6 +72,8 @@ while [ $# -gt 0 ]; do
         --php) need_value "$@"; PHP_VERSION="$2"; shift 2 ;;
         --mysql) need_value "$@"; MYSQL_VERSION="$2"; shift 2 ;;
         --docroot) [ $# -ge 2 ] || die "--docroot requires a value"; DOCROOT="$2"; DOCROOT_SET=1; shift 2 ;;
+        --app-dir) need_value "$@"; APP_DIR="$2"; shift 2 ;;
+        --port) need_value "$@"; PORT="$2"; PORT_SET=1; shift 2 ;;
         --name) need_value "$@"; PROJECT_NAME="$2"; shift 2 ;;
         --db-name) need_value "$@"; DB_NAME="$2"; shift 2 ;;
         --db-user) need_value "$@"; DB_USER="$2"; shift 2 ;;
@@ -122,12 +137,37 @@ fi
 PROJECT_NAME="$(printf '%s' "$PROJECT_NAME" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_-' '-' | sed -e 's/^[^a-z0-9]*//' -e 's/-*$//')"
 [ -n "$PROJECT_NAME" ] || PROJECT_NAME="project"
 
+if [ -z "$APP_DIR" ]; then
+    APP_DIR="$DEFAULT_APP_DIR"
+fi
+APP_DIR="$(printf '%s' "$APP_DIR" | sed -e 's#^\./##' -e 's#^/*##' -e 's#/*$##')"
+matches "$APP_DIR" '^[A-Za-z0-9][A-Za-z0-9._-]*$' \
+    || die "--app-dir must be a simple folder name (letters, digits, '.', '_', '-')"
+case "$APP_DIR" in
+    data|logs|.devcontainer|.git|.vscode) die "--app-dir '$APP_DIR' is reserved" ;;
+esac
+
+if [ "$PORT_SET" -eq 1 ]; then
+    matches "$PORT" '^[0-9]+$' && [ "$PORT" -ge 1 ] && [ "$PORT" -le 65535 ] \
+        || die "--port must be a number between 1 and 65535 (got '$PORT')"
+    PORTS_KEY="    ports:"
+    PORTS_ENTRIES="      - \"${PORT}:80\""
+    FORWARD_80=""
+    PORT_ATTR="    \"${PORT}:80\": { \"label\": \"Apache\", \"onAutoForward\": \"silent\" },"
+    APACHE_PORT_NOTE="pinned to http://localhost:${PORT}"
+else
+    PORT=""
+    PORTS_KEY="    # Apache: no fixed host port; VS Code auto-forwards container port 80."
+    PORTS_ENTRIES=""
+    FORWARD_80="80,"
+    PORT_ATTR="    \"80\": { \"label\": \"Apache\", \"onAutoForward\": \"notify\" },"
+    APACHE_PORT_NOTE="auto-forwarded to a free local port (see VS Code's Ports panel)"
+fi
+
 if [ "$DOCROOT_SET" -eq 0 ] && [ -f "$PROJECT_DIR/public/index.php" ]; then
     DOCROOT="public"
 fi
 DOCROOT="$(printf '%s' "$DOCROOT" | sed -e 's#^\./##' -e 's#^/*##' -e 's#/*$##')"
-
-matches() { printf '%s' "$1" | grep -Eq "$2"; }
 
 matches "$PHP_VERSION" '^[0-9]+\.[0-9]+$' || die "--php must look like 8.5 (got '$PHP_VERSION')"
 matches "$MYSQL_VERSION" '^[A-Za-z0-9][A-Za-z0-9._-]*$' || die "invalid --mysql tag '$MYSQL_VERSION'"
@@ -145,10 +185,15 @@ done
 [ "$DB_USER" != "root" ] || die "--db-user cannot be 'root'; use --db-root-password for root"
 
 if [ -n "$DOCROOT" ]; then
+    # Framework layout (e.g. Laravel): serve inside the full project mount, so
+    # includes like ../vendor still resolve.
     CONTAINER_DOCROOT="/workspace/$DOCROOT"
+    WORKSPACE_FOLDER="/workspace"
     [ -d "$PROJECT_DIR/$DOCROOT" ] || info "warning: web root '$DOCROOT' does not exist yet in $PROJECT_DIR"
 else
-    CONTAINER_DOCROOT="/workspace"
+    # Flat layout: application files live in the app folder, bound to /var/www/httpdocs.
+    CONTAINER_DOCROOT="/var/www/httpdocs"
+    WORKSPACE_FOLDER="/var/www/httpdocs"
 fi
 
 # --- Write files ---------------------------------------------------------------
@@ -159,6 +204,16 @@ if [ -e "$DEST" ]; then
 fi
 mkdir -p "$DEST/mysql/init"
 
+# Host-side bind targets: app files and error logs (MySQL data stays in a
+# named Docker volume).
+mkdir -p "$PROJECT_DIR/$APP_DIR" "$PROJECT_DIR/logs/errors/apache" \
+         "$PROJECT_DIR/logs/errors/mysql"
+[ -e "$PROJECT_DIR/$APP_DIR/.gitkeep" ] || : > "$PROJECT_DIR/$APP_DIR/.gitkeep"
+# Keep generated logs out of git, but keep the .gitignore file itself.
+if [ ! -e "$PROJECT_DIR/logs/.gitignore" ]; then
+    printf '*\n!.gitignore\n' > "$PROJECT_DIR/logs/.gitignore"
+fi
+
 render() {
     sed -e "s|__PHP_VERSION__|$PHP_VERSION|g" \
         -e "s|__MYSQL_VERSION__|$MYSQL_VERSION|g" \
@@ -168,21 +223,64 @@ render() {
         -e "s|__DB_USER__|$DB_USER|g" \
         -e "s|__DB_PASSWORD__|$DB_PASSWORD|g" \
         -e "s|__DB_ROOT_PASSWORD__|$DB_ROOT_PASSWORD|g" \
-        "$TEMPLATE_DIR/$1" > "$DEST/$1"
+        -e "s|__WORKSPACE_FOLDER__|$WORKSPACE_FOLDER|g" \
+        -e "s|__APP_DIR__|$APP_DIR|g" \
+        -e "s|__PORT__|$PORT|g" \
+        -e "s|__PORTS_KEY__|$PORTS_KEY|g" \
+        -e "s|__PORTS_ENTRIES__|$PORTS_ENTRIES|g" \
+        -e "s|__FORWARD_80__|$FORWARD_80|g" \
+        -e "s|__PORT_ATTR__|$PORT_ATTR|g" \
+        -e "s|__APACHE_PORT_NOTE__|$APACHE_PORT_NOTE|g" \
+        "$TEMPLATE_DIR/$1" > "$2"
 }
 
 for f in devcontainer.json compose.yaml Dockerfile apache-vhost.conf php-dev.ini \
          mysql-client.cnf entrypoint.sh post-create.sh .gitattributes; do
-    render "$f"
+    render "$f" "$DEST/$f"
 done
 chmod +x "$DEST/entrypoint.sh" "$DEST/post-create.sh"
 [ -e "$DEST/mysql/init/.gitkeep" ] || : > "$DEST/mysql/init/.gitkeep"
+
+# .github/copilot-instructions.md: create or update the marked section without
+# touching anything the user wrote outside the markers.
+INSTRUCTIONS="$PROJECT_DIR/.github/copilot-instructions.md"
+SECTION="$(mktemp)"
+trap 'rm -f "$SECTION"' EXIT
+render copilot-instructions.md "$SECTION"
+mkdir -p "$PROJECT_DIR/.github"
+if [ ! -e "$INSTRUCTIONS" ]; then
+    printf '# Copilot instructions\n' > "$INSTRUCTIONS"
+    cat "$SECTION" >> "$INSTRUCTIONS"
+elif grep -q 'devcontainer-lamp:begin' "$INSTRUCTIONS"; then
+    awk -v section="$SECTION" '
+        /devcontainer-lamp:begin/ && !replaced {
+            while ((getline line < section) > 0) print line
+            close(section)
+            replaced = 1
+            skip = 1
+            next
+        }
+        /devcontainer-lamp:end/ && skip { skip = 0; next }
+        !skip { print }
+    ' "$INSTRUCTIONS" > "$INSTRUCTIONS.tmp" && mv "$INSTRUCTIONS.tmp" "$INSTRUCTIONS"
+else
+    printf '\n' >> "$INSTRUCTIONS"
+    cat "$SECTION" >> "$INSTRUCTIONS"
+fi
+rm -f "$SECTION"; trap - EXIT
 
 cat >&2 <<EOF
 Created $DEST
   Debian 13 (trixie) + Apache 2.4 + PHP $PHP_VERSION + Composer + Xdebug
   MySQL $MYSQL_VERSION (service "db", database "$DB_NAME", user "$DB_USER")
+  Apache:  ${APACHE_PORT_NOTE}
   Web root: $CONTAINER_DOCROOT
+  MySQL data: named volume ${PROJECT_NAME}-devcontainer_mysql-data (persists across rebuilds)
+  Host binds:
+    $APP_DIR/            -> /var/www/httpdocs (application files)
+    logs/errors/apache/  -> /var/log/apache2 (Apache error log)
+    logs/errors/mysql/   -> /var/log/mysql (MySQL error log)
+  Copilot instructions: .github/copilot-instructions.md (marked section, safe to rerun)
 EOF
 
 if [ "$OPEN" -eq 1 ]; then

@@ -5,7 +5,7 @@
   "dockerComposeFile": "compose.yaml",
   "service": "app",
   "runServices": ["app", "db"],
-  "workspaceFolder": "/workspace",
+  "workspaceFolder": "/var/www/httpdocs",
   "shutdownAction": "stopCompose",
   "remoteUser": "vscode",
   "updateRemoteUserUID": true,
@@ -20,13 +20,14 @@
     "ghcr.io/devcontainers/features/docker-in-docker:2": { "moby": false }
   },
 
-  "forwardPorts": [80, "db:3306"],
+  // Apache is auto-forwarded to a free local port (see VS Code's Ports panel).
+  "forwardPorts": [80,"db:3306"],
   "portsAttributes": {
     "80": { "label": "Apache", "onAutoForward": "notify" },
     "db:3306": { "label": "MySQL", "onAutoForward": "silent" }
   },
 
-  "postCreateCommand": "bash .devcontainer/post-create.sh && bash .devcontainer/workspace-setup.sh",
+  "postCreateCommand": "bash /workspace/.devcontainer/post-create.sh && bash /workspace/.devcontainer/workspace-setup.sh",
   "containerEnv": { "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}" },
 
   "customizations": {
