@@ -11,7 +11,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
     PHP_VERSION=${PHP_VERSION} \
-    APACHE_DOCUMENT_ROOT=/workspace
+    APACHE_DOCUMENT_ROOT=/var/www/httpdocs
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

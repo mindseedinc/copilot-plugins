@@ -5,7 +5,7 @@
   "dockerComposeFile": "compose.yaml",
   "service": "app",
   "runServices": ["app", "db"],
-  "workspaceFolder": "/workspace",
+  "workspaceFolder": "__WORKSPACE_FOLDER__",
   "shutdownAction": "stopCompose",
   "remoteUser": "vscode",
   "updateRemoteUserUID": true,
@@ -14,13 +14,14 @@
   // "ghcr.io/devcontainers/features/node:1": {}
   "features": {},
 
-  "forwardPorts": [80, "db:3306"],
+  // Apache is __APACHE_PORT_NOTE__.
+  "forwardPorts": [__FORWARD_80__"db:3306"],
   "portsAttributes": {
-    "80": { "label": "Apache", "onAutoForward": "notify" },
+__PORT_ATTR__
     "db:3306": { "label": "MySQL", "onAutoForward": "silent" }
   },
 
-  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "postCreateCommand": "bash /workspace/.devcontainer/post-create.sh",
 
   "customizations": {
     "vscode": {

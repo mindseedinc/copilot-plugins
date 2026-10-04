@@ -159,12 +159,22 @@ $toolDetails = [
     ],
 ];
 
+// Tools live next to the app folder on the host (repo root serving) and at
+// /workspace/tools inside the dev container.
+$toolsDirectory = null;
+foreach ([__DIR__ . '/tools', __DIR__ . '/../tools', '/workspace/tools'] as $candidate) {
+    if (is_dir($candidate)) {
+        $toolsDirectory = $candidate;
+        break;
+    }
+}
+
 $plugins = [];
 $catalogueError = null;
 $toolchain = [];
 $toolchainError = null;
 try {
-    $plugins = workspacePlugins(__DIR__ . '/tools');
+    $plugins = workspacePlugins($toolsDirectory ?? (__DIR__ . '/../tools'));
 } catch (JsonException | RuntimeException $error) {
     error_log('Workspace homepage: plugin catalogue failed: ' . $error->getMessage());
     $catalogueError = 'The plugin catalogue could not be loaded. Check the Apache error log.';

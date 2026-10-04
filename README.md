@@ -5,8 +5,9 @@ separate MySQL service.
 
 ## Homepage
 
-Open the forwarded Apache port **80** at <http://localhost/>. The
-[homepage](index.php) discovers every plugin manifest in `tools/*/plugin.json`
+Open the forwarded Apache port (**Ports** panel, or `http://localhost:8080` if
+you generated with `--port 8080`). The
+[homepage](httpdocs/index.php) discovers every plugin manifest in `tools/*/plugin.json`
 and the skills in each plugin's `skills/` directory. It includes documentation
 links, requirements, CLI examples, and development toolchain availability.
 New plugin folders appear automatically; curated usage examples for the current
@@ -65,7 +66,7 @@ Xdebug connects to the IDE only when triggered, so an idle port 9003 is normal.
 The tests use PHP itself and require no additional packages:
 
 ```sh
-php -l index.php
+php -l httpdocs/index.php
 php .devcontainer/tests/homepage.php
 ```
 

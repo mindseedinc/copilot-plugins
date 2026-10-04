@@ -8,8 +8,15 @@ services:
       args:
         PHP_VERSION: "__PHP_VERSION__"
     init: true
+__PORTS_KEY__
+__PORTS_ENTRIES__
     volumes:
+      # Whole project (tools, .devcontainer, config) at /workspace.
       - ..:/workspace:cached
+      # Application files, served by Apache.
+      - ../__APP_DIR__:/var/www/httpdocs:cached
+      # Apache error log on the host.
+      - ../logs/errors/apache:/var/log/apache2
     environment:
       APACHE_DOCUMENT_ROOT: "__DOCROOT__"
       DB_CONNECTION: mysql
@@ -25,13 +32,19 @@ services:
   db:
     image: mysql:__MYSQL_VERSION__
     restart: unless-stopped
+    # Error log to the host bind (logs/errors/mysql/error.log).
+    command: --log-error=/var/log/mysql/error.log
     environment:
       MYSQL_ROOT_PASSWORD: "__DB_ROOT_PASSWORD__"
       MYSQL_DATABASE: "__DB_NAME__"
       MYSQL_USER: "__DB_USER__"
       MYSQL_PASSWORD: "__DB_PASSWORD__"
     volumes:
+      # MySQL data lives in a named volume: it persists across rebuilds and
+      # `docker compose down`, and is faster than a host bind on macOS/Windows.
       - mysql-data:/var/lib/mysql
+      # MySQL error log on the host.
+      - ../logs/errors/mysql:/var/log/mysql
       - ./mysql/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]

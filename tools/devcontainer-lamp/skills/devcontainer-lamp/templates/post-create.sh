@@ -2,7 +2,9 @@
 # Runs once after the dev container is created.
 set -euo pipefail
 
-cd /workspace
+# Application files live at the Apache document root (or /workspace for
+# framework layouts where the docroot is inside the full project).
+cd "${APACHE_DOCUMENT_ROOT:-/var/www/httpdocs}" 2>/dev/null || cd /workspace
 
 # Let `mysql` and `mysqldump` connect to the "db" service without arguments.
 if [ ! -e "$HOME/.my.cnf" ]; then
